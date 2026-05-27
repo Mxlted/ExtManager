@@ -188,6 +188,11 @@ main {
 .pin-btn { font-size: 13px; }
 .ext-item.pinned .pin-btn { color: #f0b237; }
 
+.lock-btn { font-size: 13px; opacity: 0.55; }
+.lock-btn:hover { opacity: 1; }
+.ext-item.locked .lock-btn { color: #4f8cff; opacity: 1; }
+.ext-item.locked { box-shadow: inset 2px 0 0 var(--accent); }
+
 /* iOS-style toggle */
 .switch { position: relative; display: inline-block; width: 34px; height: 18px; }
 .switch input { opacity: 0; width: 0; height: 0; }

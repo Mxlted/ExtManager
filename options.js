@@ -5,6 +5,7 @@ const STORAGE_KEYS = {
   PROFILES: "profiles",
   ACTIVE_PROFILE: "activeProfile",
   PINNED: "pinned",
+  LOCKED: "locked",
   RECENT: "recent",
   SORT: "sortBy",
   SETTINGS: "settings",
@@ -25,7 +26,8 @@ const state = {
   selectedProfile: null,
   extQuery: "",
   profileExtQuery: "",
-  pinned: new Set()
+  pinned: new Set(),
+  locked: new Set()
 };
 
 // ---------- Storage ----------
@@ -35,6 +37,7 @@ async function loadAll() {
   state.activeProfile = data[STORAGE_KEYS.ACTIVE_PROFILE] || null;
   state.settings = { ...DEFAULT_SETTINGS, ...(data[STORAGE_KEYS.SETTINGS] || {}) };
   state.pinned = new Set(data[STORAGE_KEYS.PINNED] || []);
+  state.locked = new Set(data[STORAGE_KEYS.LOCKED] || []);
 }
 
 async function saveProfiles() {
@@ -48,6 +51,9 @@ async function saveSettings() {
 }
 async function savePinned() {
   await chrome.storage.local.set({ [STORAGE_KEYS.PINNED]: [...state.pinned] });
+}
+async function saveLocked() {
+  await chrome.storage.local.set({ [STORAGE_KEYS.LOCKED]: [...state.locked] });
 }
 
 // ---------- Extensions ----------
@@ -135,6 +141,7 @@ function renderExtTable() {
     const tr = document.createElement("tr");
     if (!ext.enabled) tr.classList.add("disabled");
     if (state.pinned.has(ext.id)) tr.classList.add("pinned");
+    if (state.locked.has(ext.id)) tr.classList.add("locked");
 
     const pinTd = document.createElement("td");
     pinTd.className = "pin-cell";
@@ -149,6 +156,23 @@ function renderExtTable() {
       renderExtTable();
     });
     pinTd.appendChild(pinBtn);
+
+    const lockTd = document.createElement("td");
+    lockTd.className = "lock-cell";
+    const lockBtn = document.createElement("button");
+    lockBtn.className = "lock-btn";
+    const isLocked = state.locked.has(ext.id);
+    lockBtn.textContent = isLocked ? "🔒" : "🔓";
+    lockBtn.title = isLocked
+      ? "Unlock — allow bulk Enable/Disable to affect this extension"
+      : "Lock — exempt from bulk Enable/Disable";
+    lockBtn.addEventListener("click", async () => {
+      if (state.locked.has(ext.id)) state.locked.delete(ext.id);
+      else state.locked.add(ext.id);
+      await saveLocked();
+      renderExtTable();
+    });
+    lockTd.appendChild(lockBtn);
 
     const iconTd = document.createElement("td");
     const img = document.createElement("img");
@@ -191,7 +215,7 @@ function renderExtTable() {
     });
     actionTd.appendChild(btn);
 
-    tr.append(pinTd, iconTd, nameTd, typeTd, versionTd, statusTd, actionTd);
+    tr.append(pinTd, lockTd, iconTd, nameTd, typeTd, versionTd, statusTd, actionTd);
     tbody.appendChild(tr);
   }
 }
@@ -217,11 +241,16 @@ async function bulkSet(target) {
   }
 
   const snapshot = {};
-  for (const ext of state.extensions) snapshot[ext.id] = !!ext.enabled;
+  for (const ext of state.extensions) {
+    if (state.locked.has(ext.id)) continue;
+    snapshot[ext.id] = !!ext.enabled;
+  }
   await chrome.storage.local.set({ [STORAGE_KEYS.LAST_BULK_SNAPSHOT]: snapshot });
 
   const ops = [];
+  let skippedLocked = 0;
   for (const ext of state.extensions) {
+    if (state.locked.has(ext.id)) { skippedLocked++; continue; }
     if (ext.enabled === target) continue;
     if (!ext.mayDisable && !target) continue;
     ops.push(setEnabled(ext, target).catch(e => console.warn("bulk", ext.id, e)));
@@ -229,7 +258,8 @@ async function bulkSet(target) {
   await Promise.all(ops);
   renderExtTable();
   updateExtCount();
-  toast("Bulk done", "ok", { label: "Undo", onClick: undoLastBulk });
+  const lockedNote = skippedLocked ? ` (${skippedLocked} locked)` : "";
+  toast(`Bulk done${lockedNote}`, "ok", { label: "Undo", onClick: undoLastBulk });
 }
 
 async function undoLastBulk() {
@@ -242,6 +272,7 @@ async function undoLastBulk() {
   const ops = [];
   for (const ext of state.extensions) {
     if (!(ext.id in snap)) continue;
+    if (state.locked.has(ext.id)) continue; // lock added after the snapshot still wins
     const want = !!snap[ext.id];
     if (ext.enabled === want) continue;
     if (!ext.mayDisable && !want) continue;
@@ -571,6 +602,10 @@ function wireLive() {
     if (area !== "local") return;
     if (changes[STORAGE_KEYS.PINNED]) {
       state.pinned = new Set(changes[STORAGE_KEYS.PINNED].newValue || []);
+      renderExtTable();
+    }
+    if (changes[STORAGE_KEYS.LOCKED]) {
+      state.locked = new Set(changes[STORAGE_KEYS.LOCKED].newValue || []);
       renderExtTable();
     }
     if (changes[STORAGE_KEYS.PROFILES]) {

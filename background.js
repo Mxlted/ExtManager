@@ -4,7 +4,8 @@
 "use strict";
 
 const STORAGE_KEYS = {
-  LAST_BULK_SNAPSHOT: "lastBulkSnapshot"
+  LAST_BULK_SNAPSHOT: "lastBulkSnapshot",
+  LOCKED: "locked"
 };
 
 const SELF_ID = chrome.runtime.id;
@@ -17,10 +18,17 @@ async function listManageable() {
   );
 }
 
+async function getLockedSet() {
+  const data = await chrome.storage.local.get(STORAGE_KEYS.LOCKED);
+  const arr = Array.isArray(data[STORAGE_KEYS.LOCKED]) ? data[STORAGE_KEYS.LOCKED] : [];
+  return new Set(arr);
+}
+
 async function setAll(enabled) {
-  const exts = await listManageable();
+  const [exts, locked] = await Promise.all([listManageable(), getLockedSet()]);
   const ops = [];
   for (const ext of exts) {
+    if (locked.has(ext.id)) continue;
     if (ext.enabled === enabled) continue;
     if (!ext.mayDisable && !enabled) continue;
     ops.push(
@@ -33,13 +41,16 @@ async function setAll(enabled) {
 }
 
 async function toggleAll() {
-  const exts = await listManageable();
-  const anyEnabled = exts.some(e => e.enabled && e.mayDisable);
+  const [exts, locked] = await Promise.all([listManageable(), getLockedSet()]);
+  const anyEnabled = exts.some(e => !locked.has(e.id) && e.enabled && e.mayDisable);
 
   if (anyEnabled) {
-    // disabling all — snapshot current state so we can restore later
+    // disabling all — snapshot current (non-locked) state so we can restore later
     const snapshot = {};
-    for (const e of exts) snapshot[e.id] = !!e.enabled;
+    for (const e of exts) {
+      if (locked.has(e.id)) continue;
+      snapshot[e.id] = !!e.enabled;
+    }
     await chrome.storage.local.set({ [STORAGE_KEYS.LAST_BULK_SNAPSHOT]: snapshot });
     await setAll(false);
     notify("All extensions disabled", "Use the shortcut again to restore.");
@@ -50,6 +61,8 @@ async function toggleAll() {
     if (snap && typeof snap === "object") {
       const ops = [];
       for (const ext of exts) {
+        if (locked.has(ext.id)) continue;
+        if (!(ext.id in snap)) continue;
         const want = !!snap[ext.id];
         if (ext.enabled === want) continue;
         if (!ext.mayDisable && !want) continue;
@@ -104,9 +117,12 @@ chrome.commands.onCommand.addListener(async (cmd) => {
     if (cmd === "toggle-all") await toggleAll();
     else if (cmd === "enable-all") { await setAll(true); notify("All extensions enabled", ""); }
     else if (cmd === "disable-all") {
-      const exts = await listManageable();
+      const [exts, locked] = await Promise.all([listManageable(), getLockedSet()]);
       const snapshot = {};
-      for (const e of exts) snapshot[e.id] = !!e.enabled;
+      for (const e of exts) {
+        if (locked.has(e.id)) continue;
+        snapshot[e.id] = !!e.enabled;
+      }
       await chrome.storage.local.set({ [STORAGE_KEYS.LAST_BULK_SNAPSHOT]: snapshot });
       await setAll(false);
       notify("All extensions disabled", "");

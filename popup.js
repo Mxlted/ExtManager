@@ -5,6 +5,7 @@ const STORAGE_KEYS = {
   PROFILES: "profiles",
   ACTIVE_PROFILE: "activeProfile",
   PINNED: "pinned",
+  LOCKED: "locked",
   RECENT: "recent",
   SORT: "sortBy",
   SETTINGS: "settings",
@@ -22,6 +23,7 @@ const state = {
   profiles: {},            // { name: { [extId]: bool } }
   activeProfile: null,
   pinned: new Set(),       // extension ids pinned to top
+  locked: new Set(),       // extension ids exempt from bulk Enable/Disable/Invert
   recent: [],              // ordered ext ids most-recently toggled first
   settings: { ...DEFAULT_SETTINGS },
   query: "",
@@ -35,6 +37,7 @@ async function loadAllStorage() {
     STORAGE_KEYS.PROFILES,
     STORAGE_KEYS.ACTIVE_PROFILE,
     STORAGE_KEYS.PINNED,
+    STORAGE_KEYS.LOCKED,
     STORAGE_KEYS.RECENT,
     STORAGE_KEYS.SORT,
     STORAGE_KEYS.SETTINGS
@@ -42,6 +45,7 @@ async function loadAllStorage() {
   state.profiles = data[STORAGE_KEYS.PROFILES] || {};
   state.activeProfile = data[STORAGE_KEYS.ACTIVE_PROFILE] || null;
   state.pinned = new Set(data[STORAGE_KEYS.PINNED] || []);
+  state.locked = new Set(data[STORAGE_KEYS.LOCKED] || []);
   state.recent = Array.isArray(data[STORAGE_KEYS.RECENT]) ? data[STORAGE_KEYS.RECENT] : [];
   state.sortBy = data[STORAGE_KEYS.SORT] || "name";
   state.settings = { ...DEFAULT_SETTINGS, ...(data[STORAGE_KEYS.SETTINGS] || {}) };
@@ -55,6 +59,9 @@ async function saveActiveProfile() {
 }
 async function savePinned() {
   await chrome.storage.local.set({ [STORAGE_KEYS.PINNED]: [...state.pinned] });
+}
+async function saveLocked() {
+  await chrome.storage.local.set({ [STORAGE_KEYS.LOCKED]: [...state.locked] });
 }
 async function saveRecent() {
   // cap to last 50
@@ -294,6 +301,7 @@ function renderList() {
     node.dataset.id = ext.id;
     if (!ext.enabled) node.classList.add("disabled");
     if (state.pinned.has(ext.id)) node.classList.add("pinned");
+    if (state.locked.has(ext.id)) node.classList.add("locked");
 
     const img = node.querySelector(".ext-icon");
     const iconUrl = bestIcon(ext);
@@ -332,6 +340,30 @@ function renderList() {
       renderList();
     });
 
+    const lockBtn = node.querySelector(".lock-btn");
+    const setLockGlyph = () => {
+      const isLocked = state.locked.has(ext.id);
+      // 🔒 (U+1F512) when locked, 🔓 (U+1F513) when unlocked
+      lockBtn.textContent = isLocked ? "🔒" : "🔓";
+      lockBtn.title = isLocked
+        ? "Unlock — allow bulk Enable/Disable/Invert to affect this extension"
+        : "Lock — exempt from bulk Enable/Disable/Invert";
+    };
+    setLockGlyph();
+    lockBtn.addEventListener("click", async () => {
+      if (state.locked.has(ext.id)) state.locked.delete(ext.id);
+      else state.locked.add(ext.id);
+      await saveLocked();
+      node.classList.toggle("locked", state.locked.has(ext.id));
+      setLockGlyph();
+      setStatus(
+        state.locked.has(ext.id)
+          ? `${ext.name} locked — bulk actions will skip it`
+          : `${ext.name} unlocked`,
+        "ok"
+      );
+    });
+
     list.appendChild(node);
   }
 
@@ -356,12 +388,19 @@ async function bulkSet(target) {
   }
 
   // Snapshot pre-bulk state so Undo can restore it. Shared key with background worker.
+  // Locked extensions are excluded from the snapshot so Undo never touches them either.
   const snapshot = {};
-  for (const ext of state.extensions) snapshot[ext.id] = !!ext.enabled;
+  for (const ext of state.extensions) {
+    if (state.locked.has(ext.id)) continue;
+    snapshot[ext.id] = !!ext.enabled;
+  }
   await chrome.storage.local.set({ [STORAGE_KEYS.LAST_BULK_SNAPSHOT]: snapshot });
 
   const ops = [];
+  let skippedLocked = 0;
   for (const ext of state.extensions) {
+    if (state.locked.has(ext.id)) { skippedLocked++; continue; }
+
     let want;
     if (target === "on") want = true;
     else if (target === "off") want = false;
@@ -373,7 +412,8 @@ async function bulkSet(target) {
   }
   await Promise.all(ops);
   renderList();
-  setStatus("Bulk action complete", "ok", { label: "Undo", onClick: undoLastBulk });
+  const lockedNote = skippedLocked ? ` (${skippedLocked} locked)` : "";
+  setStatus(`Bulk action complete${lockedNote}`, "ok", { label: "Undo", onClick: undoLastBulk });
 }
 
 async function undoLastBulk() {
@@ -386,6 +426,7 @@ async function undoLastBulk() {
   const ops = [];
   for (const ext of state.extensions) {
     if (!(ext.id in snap)) continue;
+    if (state.locked.has(ext.id)) continue; // safety: a lock added after the snapshot still wins
     const want = !!snap[ext.id];
     if (ext.enabled === want) continue;
     if (!ext.mayDisable && !want) continue;
@@ -490,6 +531,24 @@ function wire() {
   chrome.management.onDisabled.addListener(refreshSoft);
   chrome.management.onInstalled.addListener(refreshHard);
   chrome.management.onUninstalled.addListener(refreshHard);
+
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== "local") return;
+    let needsRender = false;
+    if (changes[STORAGE_KEYS.PINNED]) {
+      state.pinned = new Set(changes[STORAGE_KEYS.PINNED].newValue || []);
+      needsRender = true;
+    }
+    if (changes[STORAGE_KEYS.LOCKED]) {
+      state.locked = new Set(changes[STORAGE_KEYS.LOCKED].newValue || []);
+      needsRender = true;
+    }
+    if (changes[STORAGE_KEYS.PROFILES]) {
+      state.profiles = changes[STORAGE_KEYS.PROFILES].newValue || {};
+      renderProfiles();
+    }
+    if (needsRender) renderList();
+  });
 }
 
 async function refreshSoft(info) {
