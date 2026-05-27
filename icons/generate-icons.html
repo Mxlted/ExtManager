@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>ExtManager Icon Generator</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; background: #222; color: #eee; }
+    canvas { background: transparent; margin: 4px; border: 1px solid #444; }
+    button { padding: 8px 14px; margin: 8px 0; }
+    .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  </style>
+</head>
+<body>
+  <h1>ExtManager Icon Generator</h1>
+  <p>Open this file in a browser, then click "Download all". Save the resulting PNGs into the <code>icons/</code> folder next to <code>manifest.json</code>, replacing any existing files.</p>
+  <div class="row" id="canvases"></div>
+  <button id="dl">Download all</button>
+
+  <script>
+    const sizes = [16, 32, 48, 128];
+    const canvases = {};
+
+    function draw(size) {
+      const c = document.createElement("canvas");
+      c.width = size; c.height = size;
+      const ctx = c.getContext("2d");
+
+      // Background gradient circle
+      const grad = ctx.createLinearGradient(0, 0, size, size);
+      grad.addColorStop(0, "#4f8cff");
+      grad.addColorStop(1, "#2c5fcf");
+      ctx.fillStyle = grad;
+      const r = size / 2;
+      ctx.beginPath();
+      ctx.arc(r, r, r, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Power symbol
+      ctx.strokeStyle = "white";
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      const lw = Math.max(1.5, size * 0.10);
+      ctx.lineWidth = lw;
+
+      const cx = size / 2;
+      const cy = size / 2;
+      const arcR = size * 0.28;
+
+      ctx.beginPath();
+      ctx.arc(cx, cy + size * 0.04, arcR, -Math.PI * 0.30, Math.PI * 1.30);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - size * 0.30);
+      ctx.lineTo(cx, cy + size * 0.05);
+      ctx.stroke();
+
+      const wrap = document.getElementById("canvases");
+      const label = document.createElement("div");
+      label.style.textAlign = "center";
+      label.innerHTML = `${size}px`;
+      const box = document.createElement("div");
+      box.appendChild(c);
+      box.appendChild(label);
+      wrap.appendChild(box);
+
+      canvases[size] = c;
+    }
+
+    sizes.forEach(draw);
+
+    document.getElementById("dl").addEventListener("click", () => {
+      for (const [size, canvas] of Object.entries(canvases)) {
+        const a = document.createElement("a");
+        a.download = `icon${size}.png`;
+        a.href = canvas.toDataURL("image/png");
+        a.click();
+      }
+    });
+  </script>
+</body>
+</html>

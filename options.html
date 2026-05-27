@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>ExtManager - Manager</title>
+  <link rel="stylesheet" href="options.css" />
+</head>
+<body>
+  <header>
+    <h1>ExtManager</h1>
+    <nav>
+      <button class="tab active" data-tab="extensions">Extensions</button>
+      <button class="tab" data-tab="profiles">Profiles</button>
+      <button class="tab" data-tab="settings">Settings</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- EXTENSIONS TAB -->
+    <section id="tab-extensions" class="tab-panel active">
+      <div class="toolbar">
+        <input id="extSearch" type="text" placeholder="Search..." />
+        <button id="extEnableAll" class="btn">Enable all</button>
+        <button id="extDisableAll" class="btn">Disable all</button>
+        <span id="extCount" class="muted"></span>
+      </div>
+      <table class="ext-table">
+        <thead>
+          <tr>
+            <th class="pin-col"></th>
+            <th></th>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Version</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="extTableBody"></tbody>
+      </table>
+    </section>
+
+    <!-- PROFILES TAB -->
+    <section id="tab-profiles" class="tab-panel">
+      <div class="profile-layout">
+        <aside class="profile-list-pane">
+          <div class="pane-header">
+            <h2>Profiles</h2>
+            <button id="newProfileBtn" class="btn small">+ New</button>
+          </div>
+          <ul id="profileList" class="profile-list"></ul>
+          <div class="pane-actions">
+            <button id="exportBtn" class="btn small">Export</button>
+            <button id="importBtn" class="btn small">Import</button>
+            <input id="importFile" type="file" accept="application/json" class="hidden" />
+          </div>
+        </aside>
+        <section class="profile-detail-pane">
+          <div id="profileDetailEmpty" class="empty">Select or create a profile.</div>
+          <div id="profileDetail" class="hidden">
+            <div class="detail-header">
+              <input id="profileNameInput" type="text" />
+              <button id="applyProfileBtn" class="btn">Apply</button>
+              <button id="snapshotProfileBtn" class="btn" title="Overwrite with current extension state">Snapshot current</button>
+              <button id="duplicateProfileBtn" class="btn">Duplicate</button>
+              <button id="deleteProfileBtn" class="btn danger">Delete</button>
+            </div>
+            <p class="muted small">Check the extensions you want enabled when this profile is applied. Unchecked = disabled. Extensions not yet in the profile use their current state.</p>
+            <div class="profile-edit-toolbar">
+              <input id="profileExtSearch" type="text" placeholder="Filter extensions..." />
+              <button id="profileSelectAll" class="btn small">Select all</button>
+              <button id="profileSelectNone" class="btn small">Select none</button>
+            </div>
+            <ul id="profileExtList" class="profile-ext-list"></ul>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <!-- SETTINGS TAB -->
+    <section id="tab-settings" class="tab-panel">
+      <h2>Settings</h2>
+      <label class="setting">
+        <input type="checkbox" id="setConfirmBulk" />
+        <span>Confirm before bulk enable/disable</span>
+      </label>
+      <label class="setting">
+        <input type="checkbox" id="setShowThemes" />
+        <span>Include themes in extension list</span>
+      </label>
+
+      <h3>Keyboard shortcuts</h3>
+      <p class="muted small">Manage shortcuts at <code>chrome://extensions/shortcuts</code></p>
+      <ul class="shortcuts">
+        <li><kbd>Ctrl+Shift+M</kbd> — Open ExtManager popup</li>
+        <li><kbd>Ctrl+Shift+E</kbd> — Toggle all extensions on/off</li>
+      </ul>
+
+      <h3>Danger zone</h3>
+      <button id="resetBtn" class="btn danger">Reset ExtManager data</button>
+    </section>
+  </main>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="options.js"></script>
+</body>
+</html>

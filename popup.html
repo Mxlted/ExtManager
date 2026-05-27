@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>ExtManager</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="title-row">
+      <h1>ExtManager</h1>
+      <button id="openOptions" class="icon-btn" title="Open full manager">&#9881;</button>
+    </div>
+
+    <div class="profile-row">
+      <label for="profileSelect" class="sr-only">Profile</label>
+      <select id="profileSelect" title="Active profile"></select>
+      <button id="applyProfile" class="btn small" title="Apply selected profile">Apply</button>
+      <button id="saveProfile" class="btn small" title="Save current state to selected profile">Save</button>
+      <button id="newProfile" class="btn small" title="Create new profile from current state">New</button>
+      <button id="deleteProfile" class="btn small danger" title="Delete selected profile">&#10005;</button>
+    </div>
+
+    <div class="search-row">
+      <input id="search" type="text" placeholder="Search extensions..." autocomplete="off" />
+      <select id="sortBy" title="Sort">
+        <option value="name">Name</option>
+        <option value="enabled">Enabled first</option>
+        <option value="disabled">Disabled first</option>
+        <option value="recent">Recently toggled</option>
+      </select>
+    </div>
+
+    <div class="bulk-row">
+      <button id="enableAll" class="btn">Enable all</button>
+      <button id="disableAll" class="btn">Disable all</button>
+      <button id="toggleAll" class="btn" title="Flip every extension's state">Invert</button>
+      <span id="counts" class="counts"></span>
+    </div>
+  </header>
+
+  <main>
+    <ul id="extList" class="ext-list"></ul>
+    <div id="emptyState" class="empty hidden">No extensions match.</div>
+  </main>
+
+  <footer>
+    <span id="statusMsg" class="status"></span>
+  </footer>
+
+  <div id="modal" class="modal hidden">
+    <div class="modal-box">
+      <div id="modalTitle" class="modal-title"></div>
+      <input id="modalInput" type="text" class="modal-input hidden" />
+      <div class="modal-actions">
+        <button id="modalCancel" class="btn">Cancel</button>
+        <button id="modalOk" class="btn primary">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <template id="extItemTpl">
+    <li class="ext-item">
+      <img class="ext-icon" alt="" />
+      <div class="ext-meta">
+        <div class="ext-name"></div>
+        <div class="ext-sub"></div>
+      </div>
+      <div class="ext-actions">
+        <button class="pin-btn icon-btn" title="Pin to top">&#9733;</button>
+        <label class="switch" title="Enable / disable">
+          <input type="checkbox" class="ext-toggle" />
+          <span class="slider"></span>
+        </label>
+      </div>
+    </li>
+  </template>
+
+  <script src="popup.js"></script>
+</body>
+</html>

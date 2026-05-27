@@ -1,0 +1,50 @@
+{
+  "manifest_version": 3,
+  "name": "ExtManager - Extension Manager & Profiles",
+  "version": "1.0.0",
+  "description": "Quickly toggle extensions on/off, create profiles for different use cases, and bulk-manage your extensions",
+  "permissions": [
+    "management",
+    "storage",
+    "notifications"
+  ],
+  "action": {
+    "default_title": "ExtManager",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "options_page": "options.html",
+  "commands": {
+    "toggle-all": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+E"
+      },
+      "description": "Toggle all extensions on/off"
+    },
+    "disable-all": {
+      "description": "Disable all extensions"
+    },
+    "enable-all": {
+      "description": "Enable all extensions"
+    },
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+M"
+      }
+    }
+  }
+}
