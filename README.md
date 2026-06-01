@@ -1,46 +1,65 @@
 # ExtManager
 
-A Chromium extension for quickly managing other extensions — toggle them on/off, group them into profiles, and bulk-enable/disable without ever leaving the toolbar.
+ExtManager is a Manifest V3 Chromium extension for managing installed extensions from one place. It lets you quickly turn extensions on or off, save extension profiles, run bulk actions, and see how many extensions are currently enabled.
 
 ## Features
 
-- **One-click toggles** for every installed extension from a popup
-- **Profiles** — save sets of enabled extensions (e.g., "Work", "Dev", "Gaming") and apply one with a click
-- **Bulk actions** — enable all, disable all, or invert, with an inline **Undo** for 8 seconds after the action
-- **Pin** favorites to the top of the list
-- **Lock** an extension to exempt it from bulk Enable All / Disable All / Toggle-all (profiles still override the lock, since a profile is an explicit per-extension decision)
-- **Search & sort** (name, enabled first, disabled first, recently toggled)
-- **Smart toggle-all** — when re-enabling, restores the snapshot of what was on before, so you don't accidentally turn on extensions you'd already disabled manually
-- **Task Manager helper** — quick reminder for opening Chrome Task Manager (`Shift+Esc`) to inspect per-extension CPU and memory in real time
-- **Keyboard shortcuts** (configurable at `chrome://extensions/shortcuts`):
-  - `Ctrl+Shift+M` — open popup
-  - `Ctrl+Shift+E` — toggle all on/off
-  - `Shift+Esc` — open Chrome Task Manager
-- **Badge counter** showing how many extensions are currently active
-- **Import / export** profiles as JSON
-- **Light / dark theme** following system preference
+* Toggle installed extensions from the toolbar popup
+* Save and apply extension profiles
+* Enable all, disable all, or invert extension states
+* Undo recent bulk actions for a short time
+* Pin important extensions to the top
+* Lock extensions so bulk actions skip them
+* Search and sort extensions
+* Restore the previous enabled state when using smart toggle all
+* View an active extension count in the toolbar badge
+* Import and export profiles as JSON
+* Use light or dark mode based on your system theme
 
-## Install (unpacked)
+## Keyboard shortcuts
+
+Shortcuts can be changed at `chrome://extensions/shortcuts`.
+
+| Shortcut       | Action                   |
+| -------------- | ------------------------ |
+| `Ctrl+Shift+M` | Open ExtManager          |
+| `Ctrl+Shift+E` | Toggle all extensions    |
+| `Shift+Esc`    | Open Chrome Task Manager |
+
+Chrome does not provide a normal extension API for opening the native Task Manager directly or reading per extension CPU and memory usage. ExtManager includes the Task Manager shortcut as a reminder so you can check extension resource usage with Chrome’s built in tool.
+
+## Install
 
 1. Open `chrome://extensions`
-2. Enable **Developer mode** (top right)
-3. Click **Load unpacked** and select this folder
-4. Pin the ExtManager icon to your toolbar
+2. Turn on Developer mode
+3. Select Load unpacked
+4. Choose the ExtManager folder
+5. Pin ExtManager to the toolbar
 
-## Files
+## Project files
 
-- `manifest.json` — MV3 manifest
-- `popup.html/css/js` — toolbar popup
-- `options.html/css/js` — full-page manager (right-click icon → Options)
-- `background.js` — service worker handling shortcuts & badge
-- `icons/` — toolbar icons
+| File                                        | Purpose                                        |
+| ------------------------------------------- | ---------------------------------------------- |
+| `manifest.json`                             | Extension manifest                             |
+| `popup.html`, `popup.css`, `popup.js`       | Toolbar popup                                  |
+| `options.html`, `options.css`, `options.js` | Full manager page                              |
+| `background.js`                             | Service worker for shortcuts and badge updates |
+| `icons/`                                    | Extension icons                                |
 
 ## Permissions
 
-- `management` — required to enumerate and toggle other extensions
-- `storage` — for profiles and settings
-- `notifications` — small popup confirmations for keyboard shortcut actions
+ExtManager requests only the permissions it needs.
 
-No host permissions are requested. ExtManager never touches page contents.
+| Permission      | Reason                                                             |
+| --------------- | ------------------------------------------------------------------ |
+| `management`    | Lists extensions and changes their enabled state                   |
+| `storage`       | Saves profiles, settings, pinned extensions, and locked extensions |
+| `notifications` | Shows small confirmations for shortcut actions                     |
 
-Chrome does not expose a stable extension API for opening the native Task Manager directly or reading per-extension CPU/memory in normal Chrome builds, so ExtManager surfaces the built-in `Shift+Esc` workflow instead.
+ExtManager does not request host permissions, does not inject content scripts, and does not read page content.
+
+## Notes
+
+Profiles are treated as explicit saved states. Applying a profile can change locked extensions because the profile is considered an intentional user action.
+
+Bulk actions skip locked extensions. This includes enable all, disable all, invert, smart toggle all, and undo.
