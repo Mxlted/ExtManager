@@ -11,9 +11,11 @@ A Chromium extension for quickly managing other extensions — toggle them on/of
 - **Lock** an extension to exempt it from bulk Enable All / Disable All / Toggle-all (profiles still override the lock, since a profile is an explicit per-extension decision)
 - **Search & sort** (name, enabled first, disabled first, recently toggled)
 - **Smart toggle-all** — when re-enabling, restores the snapshot of what was on before, so you don't accidentally turn on extensions you'd already disabled manually
+- **Task Manager helper** — quick reminder for opening Chrome Task Manager (`Shift+Esc`) to inspect per-extension CPU and memory in real time
 - **Keyboard shortcuts** (configurable at `chrome://extensions/shortcuts`):
   - `Ctrl+Shift+M` — open popup
   - `Ctrl+Shift+E` — toggle all on/off
+  - `Shift+Esc` — open Chrome Task Manager
 - **Badge counter** showing how many extensions are currently active
 - **Import / export** profiles as JSON
 - **Light / dark theme** following system preference
@@ -40,3 +42,5 @@ A Chromium extension for quickly managing other extensions — toggle them on/of
 - `notifications` — small popup confirmations for keyboard shortcut actions
 
 No host permissions are requested. ExtManager never touches page contents.
+
+Chrome does not expose a stable extension API for opening the native Task Manager directly or reading per-extension CPU/memory in normal Chrome builds, so ExtManager surfaces the built-in `Shift+Esc` workflow instead.

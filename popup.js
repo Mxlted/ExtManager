@@ -17,6 +17,8 @@ const DEFAULT_SETTINGS = {
   showThemes: false // include theme extensions in the list
 };
 
+const TASK_MANAGER_HELP = "Chrome does not expose a direct Task Manager launcher to extensions.\n\nPress Shift+Esc in Chrome, or open Chrome menu > More tools > Task manager. Sort by CPU or Memory footprint and look for rows labeled Extension.";
+
 const BLOCKED_PROFILE_NAMES = new Set(["__proto__", "prototype", "constructor"]);
 
 const state = {
@@ -173,7 +175,7 @@ async function deleteProfile(name) {
 
 // ---------- Modal (native prompt/confirm close the popup, so we use our own) ----------
 
-function modalShow({ title, withInput = false, defaultValue = "" }) {
+function modalShow({ title, withInput = false, defaultValue = "", showCancel = true }) {
   return new Promise((resolve) => {
     const modal = document.getElementById("modal");
     const titleEl = document.getElementById("modalTitle");
@@ -188,6 +190,7 @@ function modalShow({ title, withInput = false, defaultValue = "" }) {
     } else {
       input.classList.add("hidden");
     }
+    cancel.classList.toggle("hidden", !showCancel);
     modal.classList.remove("hidden");
     const previousActive = document.activeElement;
 
@@ -227,6 +230,9 @@ function modalShow({ title, withInput = false, defaultValue = "" }) {
 
 function modalConfirm(title) {
   return modalShow({ title, withInput: false });
+}
+function modalAlert(title) {
+  return modalShow({ title, withInput: false, showCancel: false });
 }
 function modalPrompt(title, defaultValue = "") {
   return modalShow({ title, withInput: true, defaultValue });
@@ -559,6 +565,10 @@ function wire() {
 
   $("#openOptions").addEventListener("click", () => {
     chrome.runtime.openOptionsPage();
+  });
+
+  $("#taskManagerHelp").addEventListener("click", () => {
+    modalAlert(TASK_MANAGER_HELP);
   });
 
   // Live updates if other UI (options page) changes things

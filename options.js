@@ -17,6 +17,8 @@ const DEFAULT_SETTINGS = {
   showThemes: false
 };
 
+const TASK_MANAGER_HELP = "Chrome does not expose a direct Task Manager launcher to extensions.\n\nPress Shift+Esc in Chrome, or open Chrome menu > More tools > Task manager. Sort by CPU or Memory footprint and look for rows labeled Extension.";
+
 const BLOCKED_PROFILE_NAMES = new Set(["__proto__", "prototype", "constructor"]);
 
 const state = {
@@ -287,6 +289,9 @@ function wireExtensionsTab() {
   $("#extSearch").addEventListener("input", (e) => {
     state.extQuery = e.target.value;
     renderExtTable();
+  });
+  $("#taskManagerHelp").addEventListener("click", () => {
+    alert(TASK_MANAGER_HELP);
   });
   $("#extEnableAll").addEventListener("click", () => bulkSet(true));
   $("#extDisableAll").addEventListener("click", () => bulkSet(false));
