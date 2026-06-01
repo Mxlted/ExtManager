@@ -17,6 +17,8 @@ const DEFAULT_SETTINGS = {
   showThemes: false
 };
 
+const BLOCKED_PROFILE_NAMES = new Set(["__proto__", "prototype", "constructor"]);
+
 const state = {
   selfId: chrome.runtime.id,
   extensions: [],
@@ -33,11 +35,61 @@ const state = {
 // ---------- Storage ----------
 async function loadAll() {
   const data = await chrome.storage.local.get(Object.values(STORAGE_KEYS));
-  state.profiles = data[STORAGE_KEYS.PROFILES] || {};
+  state.profiles = sanitizeProfiles(data[STORAGE_KEYS.PROFILES]);
   state.activeProfile = data[STORAGE_KEYS.ACTIVE_PROFILE] || null;
   state.settings = { ...DEFAULT_SETTINGS, ...(data[STORAGE_KEYS.SETTINGS] || {}) };
   state.pinned = new Set(data[STORAGE_KEYS.PINNED] || []);
   state.locked = new Set(data[STORAGE_KEYS.LOCKED] || []);
+}
+
+function isSafeProfileName(name) {
+  return typeof name === "string" && !!name.trim() && !BLOCKED_PROFILE_NAMES.has(name.trim());
+}
+
+function sanitizeProfiles(value) {
+  const out = {};
+  if (!value || typeof value !== "object" || Array.isArray(value)) return out;
+  for (const [rawName, profile] of Object.entries(value)) {
+    const name = rawName.trim();
+    if (!isSafeProfileName(name) || !profile || typeof profile !== "object" || Array.isArray(profile)) continue;
+    const cleanProfile = {};
+    for (const [extId, enabled] of Object.entries(profile)) {
+      if (typeof extId === "string" && extId) cleanProfile[extId] = !!enabled;
+    }
+    out[name] = cleanProfile;
+  }
+  return out;
+}
+
+function parseImportedProfiles(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Invalid file");
+  }
+  for (const [rawName, profile] of Object.entries(value)) {
+    const name = rawName.trim();
+    if (name !== rawName || !isSafeProfileName(name)) {
+      throw new Error(`Invalid profile name: ${rawName}`);
+    }
+    if (!profile || typeof profile !== "object" || Array.isArray(profile)) {
+      throw new Error(`Invalid profile "${name}"`);
+    }
+    for (const enabled of Object.values(profile)) {
+      if (typeof enabled !== "boolean") {
+        throw new Error(`Invalid profile "${name}"`);
+      }
+    }
+  }
+  return sanitizeProfiles(value);
+}
+
+function profileSignature(profile) {
+  return JSON.stringify(Object.keys(profile)
+    .sort()
+    .map(extId => [extId, !!profile[extId]]));
+}
+
+function hasProfile(name) {
+  return Object.prototype.hasOwnProperty.call(state.profiles, name);
 }
 
 async function saveProfiles() {
@@ -111,9 +163,13 @@ function toast(msg, kind = "", action = null) {
 function wireTabs() {
   $$(".tab").forEach(btn => {
     btn.addEventListener("click", () => {
-      $$(".tab").forEach(b => b.classList.remove("active"));
+      $$(".tab").forEach(b => {
+        b.classList.remove("active");
+        b.setAttribute("aria-selected", "false");
+      });
       $$(".tab-panel").forEach(p => p.classList.remove("active"));
       btn.classList.add("active");
+      btn.setAttribute("aria-selected", "true");
       $(`#tab-${btn.dataset.tab}`).classList.add("active");
     });
   });
@@ -148,12 +204,12 @@ function renderExtTable() {
     const pinBtn = document.createElement("button");
     pinBtn.className = "pin-btn";
     pinBtn.title = state.pinned.has(ext.id) ? "Unpin" : "Pin to top";
+    pinBtn.setAttribute("aria-label", state.pinned.has(ext.id) ? `Unpin ${ext.name}` : `Pin ${ext.name}`);
     pinBtn.textContent = state.pinned.has(ext.id) ? "★" : "☆";
     pinBtn.addEventListener("click", async () => {
       if (state.pinned.has(ext.id)) state.pinned.delete(ext.id);
       else state.pinned.add(ext.id);
       await savePinned();
-      renderExtTable();
     });
     pinTd.appendChild(pinBtn);
 
@@ -163,6 +219,7 @@ function renderExtTable() {
     lockBtn.className = "lock-btn";
     const isLocked = state.locked.has(ext.id);
     lockBtn.textContent = isLocked ? "🔒" : "🔓";
+    lockBtn.setAttribute("aria-label", isLocked ? `Unlock ${ext.name}` : `Lock ${ext.name}`);
     lockBtn.title = isLocked
       ? "Unlock — allow bulk Enable/Disable to affect this extension"
       : "Lock — exempt from bulk Enable/Disable";
@@ -170,7 +227,6 @@ function renderExtTable() {
       if (state.locked.has(ext.id)) state.locked.delete(ext.id);
       else state.locked.add(ext.id);
       await saveLocked();
-      renderExtTable();
     });
     lockTd.appendChild(lockBtn);
 
@@ -200,6 +256,7 @@ function renderExtTable() {
     const btn = document.createElement("button");
     btn.className = "btn small";
     btn.textContent = ext.enabled ? "Disable" : "Enable";
+    btn.setAttribute("aria-label", `${ext.enabled ? "Disable" : "Enable"} ${ext.name}`);
     if (!ext.mayDisable && ext.enabled) btn.disabled = true;
     btn.addEventListener("click", async () => {
       btn.disabled = true;
@@ -351,8 +408,10 @@ function renderProfileDetail() {
     cb.className = "ext-toggle";
     // default: if not in profile, use current ext.enabled
     cb.checked = ext.id in profile ? !!profile[ext.id] : !!ext.enabled;
+    cb.setAttribute("aria-label", `${cb.checked ? "Disable" : "Enable"} ${ext.name} in profile ${name}`);
     cb.addEventListener("change", () => {
       profile[ext.id] = cb.checked;
+      cb.setAttribute("aria-label", `${cb.checked ? "Disable" : "Enable"} ${ext.name} in profile ${name}`);
       saveProfiles().then(() => renderProfileList());
     });
     const span = document.createElement("span");
@@ -368,7 +427,11 @@ function wireProfilesTab() {
   $("#newProfileBtn").addEventListener("click", async () => {
     const name = (prompt("Profile name:") || "").trim();
     if (!name) return;
-    if (state.profiles[name] && !confirm(`"${name}" exists. Overwrite?`)) return;
+    if (!isSafeProfileName(name)) {
+      toast("Choose a different profile name", "error");
+      return;
+    }
+    if (hasProfile(name) && !confirm(`"${name}" exists. Overwrite?`)) return;
     const snap = {};
     for (const ext of state.extensions) snap[ext.id] = !!ext.enabled;
     state.profiles[name] = snap;
@@ -421,7 +484,7 @@ function wireProfilesTab() {
     if (!name) return;
     let copy = `${name} (copy)`;
     let i = 2;
-    while (state.profiles[copy]) copy = `${name} (copy ${i++})`;
+    while (hasProfile(copy)) copy = `${name} (copy ${i++})`;
     state.profiles[copy] = { ...state.profiles[name] };
     await saveProfiles();
     state.selectedProfile = copy;
@@ -453,7 +516,12 @@ function wireProfilesTab() {
       e.target.value = oldName || "";
       return;
     }
-    if (state.profiles[newName]) {
+    if (!isSafeProfileName(newName)) {
+      toast("Choose a different profile name", "error");
+      e.target.value = oldName;
+      return;
+    }
+    if (hasProfile(newName)) {
       toast("Name already exists", "error");
       e.target.value = oldName;
       return;
@@ -521,21 +589,27 @@ function wireProfilesTab() {
     try {
       const text = await file.text();
       const data = JSON.parse(text);
-      if (!data.profiles || typeof data.profiles !== "object") {
-        throw new Error("Invalid file");
-      }
+      const imported = parseImportedProfiles(data.profiles);
       const merge = confirm("OK = merge with existing profiles. Cancel = replace.");
       if (merge) {
-        for (const [name, prof] of Object.entries(data.profiles)) {
+        for (const [name, prof] of Object.entries(imported)) {
           let target = name;
           let i = 2;
-          while (state.profiles[target] && JSON.stringify(state.profiles[target]) !== JSON.stringify(prof)) {
+          const sig = profileSignature(prof);
+          while (hasProfile(target) && profileSignature(state.profiles[target]) !== sig) {
             target = `${name} (${i++})`;
           }
           state.profiles[target] = prof;
         }
       } else {
-        state.profiles = data.profiles;
+        state.profiles = imported;
+        if (state.activeProfile && !hasProfile(state.activeProfile)) {
+          state.activeProfile = null;
+          await saveActive();
+        }
+        if (state.selectedProfile && !hasProfile(state.selectedProfile)) {
+          state.selectedProfile = null;
+        }
       }
       await saveProfiles();
       renderProfileList();
@@ -575,9 +649,14 @@ function wireSettingsTab() {
     state.profiles = {};
     state.activeProfile = null;
     state.selectedProfile = null;
+    state.pinned = new Set();
+    state.locked = new Set();
     state.settings = { ...DEFAULT_SETTINGS };
     cb1.checked = state.settings.confirmBulk;
     cb2.checked = state.settings.showThemes;
+    await loadExtensions();
+    renderExtTable();
+    updateExtCount();
     renderProfileList();
     renderProfileDetail();
     toast("Reset", "ok");
@@ -600,19 +679,25 @@ function wireLive() {
   // Pinned set may change from the popup while this page is open.
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local") return;
+    let needsExtRender = false;
     if (changes[STORAGE_KEYS.PINNED]) {
       state.pinned = new Set(changes[STORAGE_KEYS.PINNED].newValue || []);
-      renderExtTable();
+      needsExtRender = true;
     }
     if (changes[STORAGE_KEYS.LOCKED]) {
       state.locked = new Set(changes[STORAGE_KEYS.LOCKED].newValue || []);
-      renderExtTable();
+      needsExtRender = true;
     }
     if (changes[STORAGE_KEYS.PROFILES]) {
-      state.profiles = changes[STORAGE_KEYS.PROFILES].newValue || {};
+      state.profiles = sanitizeProfiles(changes[STORAGE_KEYS.PROFILES].newValue);
       renderProfileList();
       renderProfileDetail();
     }
+    if (changes[STORAGE_KEYS.ACTIVE_PROFILE]) {
+      state.activeProfile = changes[STORAGE_KEYS.ACTIVE_PROFILE].newValue || null;
+      renderProfileList();
+    }
+    if (needsExtRender) renderExtTable();
   });
 }
 

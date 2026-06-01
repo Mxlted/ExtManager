@@ -17,6 +17,8 @@ const DEFAULT_SETTINGS = {
   showThemes: false // include theme extensions in the list
 };
 
+const BLOCKED_PROFILE_NAMES = new Set(["__proto__", "prototype", "constructor"]);
+
 const state = {
   extensions: [],          // filtered chrome.management items (no self, no themes unless enabled)
   selfId: chrome.runtime.id,
@@ -42,13 +44,36 @@ async function loadAllStorage() {
     STORAGE_KEYS.SORT,
     STORAGE_KEYS.SETTINGS
   ]);
-  state.profiles = data[STORAGE_KEYS.PROFILES] || {};
+  state.profiles = sanitizeProfiles(data[STORAGE_KEYS.PROFILES]);
   state.activeProfile = data[STORAGE_KEYS.ACTIVE_PROFILE] || null;
   state.pinned = new Set(data[STORAGE_KEYS.PINNED] || []);
   state.locked = new Set(data[STORAGE_KEYS.LOCKED] || []);
   state.recent = Array.isArray(data[STORAGE_KEYS.RECENT]) ? data[STORAGE_KEYS.RECENT] : [];
   state.sortBy = data[STORAGE_KEYS.SORT] || "name";
   state.settings = { ...DEFAULT_SETTINGS, ...(data[STORAGE_KEYS.SETTINGS] || {}) };
+}
+
+function isSafeProfileName(name) {
+  return typeof name === "string" && !!name.trim() && !BLOCKED_PROFILE_NAMES.has(name.trim());
+}
+
+function sanitizeProfiles(value) {
+  const out = {};
+  if (!value || typeof value !== "object" || Array.isArray(value)) return out;
+  for (const [rawName, profile] of Object.entries(value)) {
+    const name = rawName.trim();
+    if (!isSafeProfileName(name) || !profile || typeof profile !== "object" || Array.isArray(profile)) continue;
+    const cleanProfile = {};
+    for (const [extId, enabled] of Object.entries(profile)) {
+      if (typeof extId === "string" && extId) cleanProfile[extId] = !!enabled;
+    }
+    out[name] = cleanProfile;
+  }
+  return out;
+}
+
+function hasProfile(name) {
+  return Object.prototype.hasOwnProperty.call(state.profiles, name);
 }
 
 async function saveProfiles() {
@@ -94,7 +119,7 @@ function bestIcon(ext) {
 
 function recordRecent(extId) {
   state.recent = [extId, ...state.recent.filter(id => id !== extId)].slice(0, 50);
-  saveRecent();
+  return saveRecent();
 }
 
 async function setEnabled(ext, enabled, { skipRecent = false } = {}) {
@@ -104,7 +129,7 @@ async function setEnabled(ext, enabled, { skipRecent = false } = {}) {
   }
   await chrome.management.setEnabled(ext.id, enabled);
   ext.enabled = enabled;
-  if (!skipRecent) recordRecent(ext.id);
+  if (!skipRecent) await recordRecent(ext.id);
 }
 
 // ---------- Profiles ----------
@@ -164,6 +189,7 @@ function modalShow({ title, withInput = false, defaultValue = "" }) {
       input.classList.add("hidden");
     }
     modal.classList.remove("hidden");
+    const previousActive = document.activeElement;
 
     if (withInput) {
       setTimeout(() => { input.focus(); input.select(); }, 0);
@@ -178,6 +204,9 @@ function modalShow({ title, withInput = false, defaultValue = "" }) {
       input.removeEventListener("keydown", onKey);
       modal.removeEventListener("keydown", onKey);
       document.removeEventListener("keydown", onDocKey);
+      if (previousActive && typeof previousActive.focus === "function") {
+        previousActive.focus();
+      }
       resolve(result);
     };
     const onOk = () => cleanup(withInput ? input.value : true);
@@ -316,6 +345,7 @@ function renderList() {
     const cb = node.querySelector(".ext-toggle");
     cb.checked = !!ext.enabled;
     cb.disabled = !ext.mayDisable && ext.enabled; // can only fail when trying to disable
+    cb.setAttribute("aria-label", `${ext.enabled ? "Disable" : "Enable"} ${ext.name}`);
     cb.addEventListener("change", async () => {
       const desired = cb.checked;
       cb.disabled = true;
@@ -329,15 +359,16 @@ function renderList() {
         setStatus(err.message || "Failed to toggle", "error");
       } finally {
         cb.disabled = !ext.mayDisable && ext.enabled;
+        cb.setAttribute("aria-label", `${ext.enabled ? "Disable" : "Enable"} ${ext.name}`);
       }
     });
 
     const pinBtn = node.querySelector(".pin-btn");
+    pinBtn.setAttribute("aria-label", state.pinned.has(ext.id) ? `Unpin ${ext.name}` : `Pin ${ext.name}`);
     pinBtn.addEventListener("click", async () => {
       if (state.pinned.has(ext.id)) state.pinned.delete(ext.id);
       else state.pinned.add(ext.id);
       await savePinned();
-      renderList();
     });
 
     const lockBtn = node.querySelector(".lock-btn");
@@ -345,6 +376,7 @@ function renderList() {
       const isLocked = state.locked.has(ext.id);
       // 🔒 (U+1F512) when locked, 🔓 (U+1F513) when unlocked
       lockBtn.textContent = isLocked ? "🔒" : "🔓";
+      lockBtn.setAttribute("aria-label", isLocked ? `Unlock ${ext.name}` : `Lock ${ext.name}`);
       lockBtn.title = isLocked
         ? "Unlock — allow bulk Enable/Disable/Invert to affect this extension"
         : "Lock — exempt from bulk Enable/Disable/Invert";
@@ -446,7 +478,11 @@ async function onNewProfile() {
   if (raw === null) return;
   const name = raw.trim();
   if (!name) return;
-  if (state.profiles[name]) {
+  if (!isSafeProfileName(name)) {
+    setStatus("Choose a different profile name.", "error");
+    return;
+  }
+  if (hasProfile(name)) {
     const ok = await modalConfirm(`Profile "${name}" exists. Overwrite?`);
     if (!ok) return;
   }
@@ -518,8 +554,7 @@ function wire() {
   $("#deleteProfile").addEventListener("click", onDeleteProfile);
 
   $("#profileSelect").addEventListener("change", (e) => {
-    state.activeProfile = e.target.value || null;
-    saveActiveProfile();
+    e.target.title = e.target.value ? `Selected profile: ${e.target.value}` : "Active profile";
   });
 
   $("#openOptions").addEventListener("click", () => {
@@ -544,7 +579,11 @@ function wire() {
       needsRender = true;
     }
     if (changes[STORAGE_KEYS.PROFILES]) {
-      state.profiles = changes[STORAGE_KEYS.PROFILES].newValue || {};
+      state.profiles = sanitizeProfiles(changes[STORAGE_KEYS.PROFILES].newValue);
+      renderProfiles();
+    }
+    if (changes[STORAGE_KEYS.ACTIVE_PROFILE]) {
+      state.activeProfile = changes[STORAGE_KEYS.ACTIVE_PROFILE].newValue || null;
       renderProfiles();
     }
     if (needsRender) renderList();

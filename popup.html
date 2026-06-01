@@ -9,7 +9,7 @@
   <header class="topbar">
     <div class="title-row">
       <h1>ExtManager</h1>
-      <button id="openOptions" class="icon-btn" title="Open full manager">&#9881;</button>
+      <button id="openOptions" class="icon-btn" title="Open full manager" aria-label="Open full manager">&#9881;</button>
     </div>
 
     <div class="profile-row">
@@ -18,7 +18,7 @@
       <button id="applyProfile" class="btn small" title="Apply selected profile">Apply</button>
       <button id="saveProfile" class="btn small" title="Save current state to selected profile">Save</button>
       <button id="newProfile" class="btn small" title="Create new profile from current state">New</button>
-      <button id="deleteProfile" class="btn small danger" title="Delete selected profile">&#10005;</button>
+      <button id="deleteProfile" class="btn small danger" title="Delete selected profile" aria-label="Delete selected profile">&#10005;</button>
     </div>
 
     <div class="search-row">
@@ -45,10 +45,10 @@
   </main>
 
   <footer>
-    <span id="statusMsg" class="status"></span>
+    <span id="statusMsg" class="status" role="status" aria-live="polite"></span>
   </footer>
 
-  <div id="modal" class="modal hidden">
+  <div id="modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
     <div class="modal-box">
       <div id="modalTitle" class="modal-title"></div>
       <input id="modalInput" type="text" class="modal-input hidden" />

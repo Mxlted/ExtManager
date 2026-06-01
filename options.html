@@ -8,16 +8,16 @@
 <body>
   <header>
     <h1>ExtManager</h1>
-    <nav>
-      <button class="tab active" data-tab="extensions">Extensions</button>
-      <button class="tab" data-tab="profiles">Profiles</button>
-      <button class="tab" data-tab="settings">Settings</button>
+    <nav role="tablist" aria-label="ExtManager sections">
+      <button class="tab active" data-tab="extensions" role="tab" aria-selected="true" aria-controls="tab-extensions">Extensions</button>
+      <button class="tab" data-tab="profiles" role="tab" aria-selected="false" aria-controls="tab-profiles">Profiles</button>
+      <button class="tab" data-tab="settings" role="tab" aria-selected="false" aria-controls="tab-settings">Settings</button>
     </nav>
   </header>
 
   <main>
     <!-- EXTENSIONS TAB -->
-    <section id="tab-extensions" class="tab-panel active">
+    <section id="tab-extensions" class="tab-panel active" role="tabpanel">
       <div class="toolbar">
         <input id="extSearch" type="text" placeholder="Search..." />
         <button id="extEnableAll" class="btn">Enable all</button>
@@ -42,7 +42,7 @@
     </section>
 
     <!-- PROFILES TAB -->
-    <section id="tab-profiles" class="tab-panel">
+    <section id="tab-profiles" class="tab-panel" role="tabpanel">
       <div class="profile-layout">
         <aside class="profile-list-pane">
           <div class="pane-header">
@@ -79,7 +79,7 @@
     </section>
 
     <!-- SETTINGS TAB -->
-    <section id="tab-settings" class="tab-panel">
+    <section id="tab-settings" class="tab-panel" role="tabpanel">
       <h2>Settings</h2>
       <label class="setting">
         <input type="checkbox" id="setConfirmBulk" />
@@ -102,7 +102,7 @@
     </section>
   </main>
 
-  <div id="toast" class="toast hidden"></div>
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
   <script src="options.js"></script>
 </body>

@@ -84,12 +84,13 @@ async function toggleAll() {
 function notify(title, message) {
   // Notifications are nice-to-have; silently skip on failure.
   try {
-    chrome.notifications.create({
+    const result = chrome.notifications.create({
       type: "basic",
       iconUrl: "icons/icon128.png",
       title,
       message: message || ""
     });
+    if (result && typeof result.catch === "function") result.catch(() => {});
   } catch (e) { /* no-op */ }
 }
 
@@ -100,6 +101,7 @@ async function updateBadge() {
     const total = exts.length;
     if (total === 0) {
       await chrome.action.setBadgeText({ text: "" });
+      await chrome.action.setTitle({ title: "ExtManager — 0/0 extensions on" });
       return;
     }
     await chrome.action.setBadgeBackgroundColor({ color: onCount === 0 ? "#e0524a" : "#4f8cff" });
